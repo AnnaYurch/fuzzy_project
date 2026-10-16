@@ -37,3 +37,9 @@ git push origin main
 если будут конфликты — Git покажет, 
 в каких файлах нужно вручную выбрать 
 правильную версию
+
+6) залить изменения себе в ветку из main
+git checkout ann
+git pull origin main
+git add .
+git commit -m "Разрешила конфликт слияния"
