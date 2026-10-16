@@ -3,3 +3,37 @@
 начало: .venv\Scripts\activate
 конец: deactivate
 
+2) переключиться на свою ветку 
+git checkout ann
+git checkout lera
+
+и подтянуть изменения
+git checkout ann
+git pull origin main
+если будут конфликты — решите их, 
+сделайте commit и push.
+
+3) после завершения работы
+git add .
+git commit -m "Коммент"
+git push origin ann
+
+4) как лере подключиться
+git clone https://github.com/ВАШ_ЛОГИН/fuzzy_project.git
+cd fuzzy_project
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+
+git checkout lera
+
+5) как обьединить изменения в main
+git checkout main
+git pull origin main
+git merge ann
+git merge lera
+git push origin main
+
+если будут конфликты — Git покажет, 
+в каких файлах нужно вручную выбрать 
+правильную версию
