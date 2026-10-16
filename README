@@ -19,7 +19,7 @@ git commit -m "Коммент"
 git push origin ann
 
 4) как лере подключиться
-git clone https://github.com/ВАШ_ЛОГИН/fuzzy_project.git
+git clone https://github.com/AnnaYurch/fuzzy_project.git
 cd fuzzy_project
 python -m venv .venv
 .venv\Scripts\activate
