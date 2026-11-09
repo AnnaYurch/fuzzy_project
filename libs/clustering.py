@@ -1,148 +1,199 @@
-import math
-from typing import List, Dict, Tuple
-from .fuzzy_number import FuzzyNumber
+"""
+Кластерный анализ множества нечётких величин (п.6 задания).
 
-class FuzzyClustering:
-    """Кластерный анализ множества нечетких величин"""
-    
-    @staticmethod
-    def calculate_distance_matrix(fuzzy_numbers: List[FuzzyNumber]) -> List[List[float]]:
-        """
-        Вычисление матрицы расстояний между нечеткими величинами.
-        Используется евклидово расстояние между центрами.
-        """
-        n = len(fuzzy_numbers)
-        distance_matrix = [[0.0] * n for _ in range(n)]
-        
-        for i in range(n):
-            for j in range(i + 1, n):
-                dist = fuzzy_numbers[i].distance_to(fuzzy_numbers[j])
-                distance_matrix[i][j] = dist
-                distance_matrix[j][i] = dist
-        
-        return distance_matrix
-    
-    @staticmethod
-    def k_means_clustering(
-        fuzzy_numbers: List[FuzzyNumber],
-        k: int,
-        max_iterations: int = 100,
-        tolerance: float = 1e-6
-    ) -> Dict[int, List[FuzzyNumber]]:
-        """
-        Алгоритм K-средних для кластеризации нечетких величин.
-        
-        Параметры:
-        - fuzzy_numbers: список нечетких величин
-        - k: количество кластеров
-        - max_iterations: максимальное количество итераций
-        - tolerance: порог сходимости
-        """
-        import random
-        
-        n = len(fuzzy_numbers)
-        if k > n:
-            raise ValueError("k не может быть больше количества элементов")
-        
-        # Инициализация центроидов (случайный выбор k элементов)
-        indices = random.sample(range(n), k)
-        centroids = [fuzzy_numbers[i].x0 for i in indices]
-        
-        clusters = {i: [] for i in range(k)}
-        
-        for iteration in range(max_iterations):
-            # Назначение элементов кластерам
-            new_clusters = {i: [] for i in range(k)}
-            
-            for fuzzy_num in fuzzy_numbers:
-                # Находим ближайший центроид
-                distances = [abs(fuzzy_num.x0 - centroid) for centroid in centroids]
-                cluster_id = distances.index(min(distances))
-                new_clusters[cluster_id].append(fuzzy_num)
-            
-            # Проверка сходимости
-            if new_clusters == clusters and iteration > 0:
-                break
-            
-            clusters = new_clusters
-            
-            # Обновление центроидов
-            new_centroids = []
-            for i in range(k):
-                if clusters[i]:
-                    new_centroid = sum(fn.x0 for fn in clusters[i]) / len(clusters[i])
-                    new_centroids.append(new_centroid)
-                else:
-                    new_centroids.append(centroids[i])
-            
-            # Проверка изменения центроидов
-            max_shift = max(abs(new_centroids[i] - centroids[i]) for i in range(k))
-            centroids = new_centroids
-            
-            if max_shift < tolerance:
-                break
-        
-        return clusters
-    
-    @staticmethod
-    def hierarchical_clustering(
-        fuzzy_numbers: List[FuzzyNumber],
-        k: int
-    ) -> Dict[int, List[FuzzyNumber]]:
-        """
-        Иерархическая кластеризация (агломеративная).
-        """
-        n = len(fuzzy_numbers)
-        
-        # Инициализация: каждый элемент в своем кластере
-        clusters = {i: [fuzzy_numbers[i]] for i in range(n)}
-        cluster_centers = {i: fuzzy_numbers[i].x0 for i in range(n)}
-        
-        # Повторяем пока не получим k кластеров
-        while len(clusters) > k:
-            min_dist = float('inf')
-            merge_i, merge_j = -1, -1
-            
-            # Находим два ближайших кластера
-            cluster_ids = list(clusters.keys())
-            for i in range(len(cluster_ids)):
-                for j in range(i + 1, len(cluster_ids)):
-                    ci, cj = cluster_ids[i], cluster_ids[j]
-                    dist = abs(cluster_centers[ci] - cluster_centers[cj])
-                    if dist < min_dist:
-                        min_dist = dist
-                        merge_i, merge_j = ci, cj
-            
-            # Объединяем кластеры
-            clusters[merge_i].extend(clusters[merge_j])
-            del clusters[merge_j]
-            
-            # Обновляем центр объединенного кластера
-            cluster_centers[merge_i] = sum(fn.x0 for fn in clusters[merge_i]) / len(clusters[merge_i])
-        
-        # Переиндексация кластеров
-        result = {}
-        for i, (key, items) in enumerate(clusters.items()):
-            result[i] = items
-        
-        return result
-    
-    @staticmethod
-    def get_cluster_statistics(clusters: Dict[int, List[FuzzyNumber]]) -> Dict[int, Dict]:
-        """
-        Получение статистики по кластерам.
-        """
-        stats = {}
-        for cluster_id, items in clusters.items():
-            if items:
-                centers = [fn.x0 for fn in items]
-                sigmas = [fn.sigma for fn in items]
-                stats[cluster_id] = {
-                    'count': len(items),
-                    'mean_x0': sum(centers) / len(centers),
-                    'mean_sigma': sum(sigmas) / len(sigmas),
-                    'min_x0': min(centers),
-                    'max_x0': max(centers),
-                    'std_x0': (sum((x - sum(centers)/len(centers))**2 for x in centers) / len(centers)) ** 0.5
-                }
-        return stats
+Три режима:
+  1. K-Means по (x₀, σ) — основной, по критерию WCSS.
+  2. GMM + BIC — обоснование выбора k.
+  3. Отбор подмножества по α-порогу + кластеризация — ключевая демонстрация.
+
+Математический аппарат:
+  - Критерий K-Means: J = Σ_c Σ_{i∈C_c} ‖z_i − μ_c‖² → min
+  - BIC = -2·ln(L) + p·ln(n) (Schwarz, 1978)
+  - α-отбор: величина включается в подмножество, если μ(x₀) ≥ α
+"""
+from __future__ import annotations
+import math
+from typing import Dict, List, Sequence, Tuple
+import numpy as np
+from sklearn.cluster import KMeans
+from sklearn.mixture import GaussianMixture
+from sklearn.preprocessing import StandardScaler
+from .fuzzy_number import FuzzyNumber
+from .logger import get_logger
+
+log = get_logger("clustering")
+RANDOM_STATE = 42
+
+def feature_matrix(fuzzy_set: Sequence[FuzzyNumber]) -> np.ndarray:
+    return np.array([[fn.x0, fn.sigma] for fn in fuzzy_set], dtype=float)
+
+def calculate_distance(a: FuzzyNumber, b: FuzzyNumber) -> float:
+    return math.hypot(a.x0 - b.x0, a.sigma - b.sigma)
+
+def _validate_k(fuzzy_set: Sequence[FuzzyNumber], k: int) -> None:
+    n = len(fuzzy_set)
+    if n < 2:
+        raise ValueError("Для кластеризации нужно минимум 2 величины.")
+    if not (1 <= k <= n):
+        raise ValueError(f"Число кластеров k должно быть в диапазоне 1..{n}.")
+
+# ----------------------------------------------------------------------
+# Основной метод: K-Means по критерию WCSS
+# ----------------------------------------------------------------------
+def perform_clustering(fuzzy_set: Sequence[FuzzyNumber],
+                       n_clusters: int, scale: bool = True) -> Dict:
+    _validate_k(fuzzy_set, n_clusters)
+    X = feature_matrix(fuzzy_set)
+
+    # ВАЖНО: сохраняем scaler в переменную, чтобы потом использовать его же
+    if scale:
+        scaler = StandardScaler()
+        Z = scaler.fit_transform(X)
+    else:
+        scaler = None
+        Z = X
+
+    model = KMeans(n_clusters=n_clusters, n_init=10, random_state=RANDOM_STATE)
+    labels = model.fit_predict(Z)
+
+    # Используем ТОТ ЖЕ scaler, на котором делали fit_transform
+    if scaler is not None:
+        centers = scaler.inverse_transform(model.cluster_centers_)
+    else:
+        centers = model.cluster_centers_
+
+    summary = []
+    for c in sorted(set(labels)):
+        members = [fn for fn, lbl in zip(fuzzy_set, labels) if lbl == c]
+        summary.append({
+            "cluster": c, "size": len(members),
+            "mean_x0": float(np.mean([m.x0 for m in members])),
+            "mean_sigma": float(np.mean([m.sigma for m in members])),
+            "min_x0": float(min(m.x0 for m in members)),
+            "max_x0": float(max(m.x0 for m in members)),
+        })
+    log.info("K-Means: N=%d, k=%d, инерция J=%.4f", len(fuzzy_set), n_clusters, model.inertia_)
+    return {"method": "K-Means (критерий: минимум WCSS)", "labels": labels.tolist(),
+            "model": model, "inertia": float(model.inertia_),
+            "centers": centers.tolist(), "summary": summary, "k": n_clusters}
+
+# ----------------------------------------------------------------------
+# Подбор числа кластеров
+# ----------------------------------------------------------------------
+def elbow_method(fuzzy_set: Sequence[FuzzyNumber], max_k: int = 10) -> Tuple[List[int], List[float]]:
+    n = len(fuzzy_set)
+    ks = list(range(1, min(max_k, n) + 1))
+    inertias = [perform_clustering(fuzzy_set, k)["inertia"] for k in ks]
+    return ks, inertias
+
+def gmm_bic(fuzzy_set: Sequence[FuzzyNumber], max_k: int = 10,
+            scale: bool = True) -> Tuple[List[int], List[float], int]:
+    n = len(fuzzy_set)
+    X = feature_matrix(fuzzy_set)
+    Z = StandardScaler().fit_transform(X) if scale else X
+    ks = list(range(1, min(max_k, n) + 1))
+    bics = []
+    for k in ks:
+        gmm = GaussianMixture(n_components=k, covariance_type="full",
+                              n_init=3, max_iter=300, random_state=RANDOM_STATE)
+        gmm.fit(Z)
+        bics.append(float(gmm.bic(Z)))
+    optimal_k = ks[int(np.argmin(bics))]
+    log.info("GMM+BIC: оптимальное k=%d", optimal_k)
+    return ks, bics, optimal_k
+
+# ----------------------------------------------------------------------
+# α-перекрытие (доп. режим)
+# ----------------------------------------------------------------------
+def cluster_by_alpha_overlap(fuzzy_set: Sequence[FuzzyNumber], alpha: float) -> Dict:
+    """Кластеризация по перекрытию α-срезов (single-linkage)."""
+    intervals = []
+    for fn in fuzzy_set:
+        if fn.passes_alpha_threshold(alpha):
+            try:
+                intervals.append(fn.alpha_cut(alpha))
+            except ValueError:
+                intervals.append(None)
+        else:
+            intervals.append(None)
+
+    valid = [(i, iv) for i, iv in enumerate(intervals) if iv is not None]
+    if not valid:
+        return {"method": f"α-перекрытие (α={alpha})", "alpha": alpha,
+                "labels": [-1] * len(fuzzy_set), "k": 0, "summary": []}
+
+    order = sorted(valid, key=lambda x: x[1][0])
+    labels = [-1] * len(fuzzy_set)
+    cluster_id, current_right = -1, -math.inf
+    for idx, (left, right) in order:
+        if cluster_id == -1 or left > current_right:
+            cluster_id += 1
+            current_right = right
+        else:
+            current_right = max(current_right, right)
+        labels[idx] = cluster_id
+
+    summary = []
+    for c in range(cluster_id + 1):
+        members = [fn for fn, lbl in zip(fuzzy_set, labels) if lbl == c]
+        summary.append({"cluster": c, "size": len(members),
+                        "mean_x0": float(np.mean([m.x0 for m in members])),
+                        "mean_sigma": float(np.mean([m.sigma for m in members]))})
+    log.info("α-перекрытие: α=%.3f → %d кластер(ов)", alpha, cluster_id + 1)
+    return {"method": f"Перекрытие α-срезов (α={alpha})", "alpha": alpha,
+            "labels": labels, "k": cluster_id + 1, "summary": summary}
+
+def alpha_sweep(fuzzy_set: Sequence[FuzzyNumber],
+                alphas: Sequence[float] = (0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6)) -> List[Dict]:
+    rows = []
+    for alpha in alphas:
+        passed = sum(1 for fn in fuzzy_set if fn.passes_alpha_threshold(alpha))
+        res = cluster_by_alpha_overlap(fuzzy_set, alpha)
+        rows.append({"alpha": alpha, "passed": passed, "k": res["k"]})
+    return rows
+
+# ----------------------------------------------------------------------
+# КЛЮЧЕВАЯ ФИЧА: α-отбор подмножества + кластеризация
+# ----------------------------------------------------------------------
+def filter_by_alpha_threshold(fuzzy_set: Sequence[FuzzyNumber],
+                              alpha: float) -> List[FuzzyNumber]:
+    """
+    Отбор нечётких величин по α-порогу.
+    Остаются только те, у кого μ(x₀) ≥ α.
+    Это — «определённость по Гегелю»: да/нет, любит/не любит.
+    """
+    filtered = [fn for fn in fuzzy_set if fn.passes_alpha_threshold(alpha)]
+    log.info("α-отбор: α=%.3f, было %d, стало %d величин (μ_max ≥ α)",
+             alpha, len(fuzzy_set), len(filtered))
+    return filtered
+
+def clustering_on_subset(fuzzy_set: Sequence[FuzzyNumber],
+                         alpha: float, n_clusters: int) -> Dict:
+    """
+    Полный сценарий демонстрации:
+      1) Отбор подмножества по α-порогу
+      2) Кластеризация подмножества
+      3) Сравнение с кластеризацией полного множества
+    """
+    full_result = perform_clustering(fuzzy_set, n_clusters)
+    subset = filter_by_alpha_threshold(fuzzy_set, alpha)
+
+    if len(subset) < n_clusters:
+        log.warning("В подмножестве меньше величин, чем кластеров (%d < %d)",
+                    len(subset), n_clusters)
+        return {
+            "full": full_result,
+            "alpha": alpha,
+            "subset_size": len(subset),
+            "subset_result": None,
+            "message": f"Подмножество слишком мало ({len(subset)} < k={n_clusters})"
+        }
+
+    subset_result = perform_clustering(subset, n_clusters)
+    return {
+        "full": full_result,
+        "alpha": alpha,
+        "subset_size": len(subset),
+        "subset_result": subset_result,
+        "message": f"Было {len(fuzzy_set)} → стало {len(subset)} по α={alpha}"
+    }

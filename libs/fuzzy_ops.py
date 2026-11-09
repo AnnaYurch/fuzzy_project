@@ -1,75 +1,87 @@
-import math
-from .fuzzy_number import FuzzyNumber
+"""
+Манипулирование нечёткими величинами (п.4 задания).
 
-class FuzzyOperations:
-    """Операции над нечеткими величинами с нормальным распределением"""
-    
-    @staticmethod
-    def addition(f1: FuzzyNumber, f2: FuzzyNumber) -> FuzzyNumber:
-        """
-        Сложение нечетких величин.
-        Для нормального распределения:
-        x0 = x0_1 + x0_2
-        sigma = sqrt(sigma_1² + sigma_2²)
-        """
-        new_x0 = f1.x0 + f2.x0
-        new_sigma = math.sqrt(f1.sigma ** 2 + f2.sigma ** 2)
-        return FuzzyNumber(new_x0, new_sigma)
-    
-    @staticmethod
-    def subtraction(f1: FuzzyNumber, f2: FuzzyNumber) -> FuzzyNumber:
-        """
-        Вычитание нечетких величин.
-        x0 = x0_1 - x0_2
-        sigma = sqrt(sigma_1² + sigma_2²)
-        """
-        new_x0 = f1.x0 - f2.x0
-        new_sigma = math.sqrt(f1.sigma ** 2 + f2.sigma ** 2)
-        return FuzzyNumber(new_x0, new_sigma)
-    
-    @staticmethod
-    def multiplication_by_constant(f: FuzzyNumber, c: float) -> FuzzyNumber:
-        """
-        Умножение нечеткой величины на константу.
-        x0 = c * x0
-        sigma = |c| * sigma
-        """
-        new_x0 = c * f.x0
-        new_sigma = abs(c) * f.sigma
-        return FuzzyNumber(new_x0, new_sigma)
-    
-    @staticmethod
-    def division_by_constant(f: FuzzyNumber, c: float) -> FuzzyNumber:
-        """
-        Деление нечеткой величины на константу.
-        x0 = x0 / c
-        sigma = sigma / |c|
-        """
-        if c == 0:
-            raise ValueError("Деление на ноль")
-        new_x0 = f.x0 / c
-        new_sigma = f.sigma / abs(c)
-        return FuzzyNumber(new_x0, new_sigma)
-    
-    @staticmethod
-    def comparison(f1: FuzzyNumber, f2: FuzzyNumber) -> str:
-        """
-        Сравнение нечетких величин по центрам.
-        Возвращает: 'greater', 'less', 'equal'
-        """
-        diff = f1.x0 - f2.x0
-        if abs(diff) < 1e-6:
-            return 'equal'
-        elif diff > 0:
-            return 'greater'
-        else:
-            return 'less'
-    
-    @staticmethod
-    def negation(f: FuzzyNumber) -> FuzzyNumber:
-        """
-        Отрицание нечеткой величины.
-        x0 = -x0
-        sigma остается неизменным
-        """
-        return FuzzyNumber(-f.x0, f.sigma)
+Математический аппарат:
+  Сложение/вычитание — точный результат по принципу расширения Заде:
+    x₀(A±B) = x₀A ± x₀B
+    σ(A±B) = √(σA² + σB²)
+
+  Умножение/деление — линеаризация (ряд Тейлора 1-го порядка):
+    σ_f² = (∂f/∂A)²·σA² + (∂f/∂B)²·σB²
+
+Правило сравнения:
+  1) больше та, у которой больше x₀;
+  2) при равных x₀ «больше» та, у которой МЕНЬШЕ σ.
+"""
+from __future__ import annotations
+import math
+from typing import Union
+from .fuzzy_number import FuzzyNumber
+from .logger import get_logger
+
+log = get_logger("ops")
+Scalar = Union[int, float]
+REL_LIMIT, EPS = 3.0, 1e-12
+
+def _check(value: FuzzyNumber, argname: str) -> FuzzyNumber:
+    if not isinstance(value, FuzzyNumber):
+        raise TypeError(f"{argname} должно быть FuzzyNumber.")
+    return value
+
+def add(a: FuzzyNumber, b: FuzzyNumber) -> FuzzyNumber:
+    _check(a, "A"); _check(b, "B")
+    res = FuzzyNumber(a.x0 + b.x0, math.hypot(a.sigma, b.sigma))
+    log.debug("ADD: %s + %s = %s", a, b, res)
+    return res
+
+def subtract(a: FuzzyNumber, b: FuzzyNumber) -> FuzzyNumber:
+    _check(a, "A"); _check(b, "B")
+    res = FuzzyNumber(a.x0 - b.x0, math.hypot(a.sigma, b.sigma))
+    log.debug("SUB: %s - %s = %s", a, b, res)
+    return res
+
+def multiply(a: FuzzyNumber, b: FuzzyNumber) -> FuzzyNumber:
+    _check(a, "A"); _check(b, "B")
+    sigma = math.hypot(b.x0 * a.sigma, a.x0 * b.sigma)
+    res = FuzzyNumber(a.x0 * b.x0, sigma if sigma > 0.0 else EPS)
+    log.debug("MUL: %s * %s = %s (линеаризация)", a, b, res)
+    return res
+
+def divide(a: FuzzyNumber, b: FuzzyNumber) -> FuzzyNumber:
+    _check(a, "A"); _check(b, "B")
+    if abs(b.x0) < EPS:
+        raise ZeroDivisionError("Деление невозможно: центр делителя x₀ = 0.")
+    if abs(b.x0) < REL_LIMIT * b.sigma:
+        log.warning("Деление: носитель делителя захватывает 0, линеаризация приближённая.")
+    sigma = math.hypot(a.sigma / b.x0, a.x0 * b.sigma / (b.x0 ** 2))
+    res = FuzzyNumber(a.x0 / b.x0, sigma if sigma > 0.0 else EPS)
+    log.debug("DIV: %s / %s = %s (линеаризация)", a, b, res)
+    return res
+
+def multiply_by_scalar(a: FuzzyNumber, k: Scalar) -> FuzzyNumber:
+    _check(a, "A")
+    k = float(k)
+    if k == 0.0:
+        raise ValueError("Умножение на 0 даёт вырожденную величину.")
+    res = FuzzyNumber(k * a.x0, abs(k) * a.sigma)
+    log.debug("SCALE: %s * %.4f = %s", a, k, res)
+    return res
+
+def compare(a: FuzzyNumber, b: FuzzyNumber) -> int:
+    _check(a, "A"); _check(b, "B")
+    if not math.isclose(a.x0, b.x0, rel_tol=0.0, abs_tol=EPS):
+        return 1 if a.x0 > b.x0 else -1
+    if math.isclose(a.sigma, b.sigma, rel_tol=0.0, abs_tol=EPS):
+        return 0
+    return 1 if a.sigma < b.sigma else -1
+
+def compare_str(a: FuzzyNumber, b: FuzzyNumber) -> str:
+    sign = compare(a, b)
+    symbol = {1: ">", 0: "==", -1: "<"}[sign]
+    if sign != 0 and math.isclose(a.x0, b.x0, abs_tol=EPS):
+        reason = "центры равны → больше та, у которой меньше σ"
+    elif sign == 0:
+        reason = "совпадают и центр, и разброс"
+    else:
+        reason = "сравнение по центру x₀"
+    return f"{a} {symbol} {b}   ({reason})"
