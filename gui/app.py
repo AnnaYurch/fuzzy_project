@@ -20,7 +20,6 @@ from libs import (
     perform_clustering, elbow_method, gmm_bic,
     cluster_by_alpha_overlap, filter_by_alpha_threshold, clustering_on_subset, get_logger,
 )
-from libs import __version__ as LIBS_VERSION
 from .theme import T, F_TITLE, F_SUB, F_SECTION, F_CONS, F_SMALL, F_STAT, BASE_FONT, MONO_FONT
 from .widgets import Chip, MiniBtn, SideButton, ParamDialog
 from . import plots
@@ -61,24 +60,22 @@ class _GuiLogHandler(logging.Handler):
 
 BUTTON_SPECS = [
     ("sec", "Данные", T["accent"]),
-    (1,  "∑", "Генерация множества",   "100–300 величин (равномерно)", "action_generate"),
-    (2,  "↓", "Загрузить из TSV",      "импорт множества из файла",    "action_load"),
-    (3,  "↑", "Сохранить в TSV",       "экспорт множества в файл",     "action_save"),
-    (4,  "≡", "Список величин",        "таблица x₀, σ, μmax, кластер", "action_list"),
-    (5,  "+", "Добавить вручную",      "ввод x₀ и σ",                  "action_add"),
+    (1,   "", "Генерация множества",       "",          "action_generate"),
+    (2,   "", "Загрузить из TSV",          "",             "action_load"),
+    (3,   "", "Сохранить в TSV",           "",              "action_save"),
+    (4,   "", "Список величин",            "",          "action_list"),
+    (5,   "", "Добавить вручную",          "",                           "action_add"),
     ("sec", "Анализ и Визуализация", T["green"]),
-    (6,  "★", "Визуализация α-порога", "ВСЕ величины: синие/красные, α=чёрная", "action_alpha_all"),
-    (7,  "±", "Арифметика A и B",      "+ − × ÷ · ×скаляр · сравнение",         "action_arithmetic"),
+    (6,   "", "Визуализация α-порога",     "", "action_alpha_all"),
+    (7,   "", "Арифметика A и B",          "",         "action_arithmetic"),
     ("sec", "Кластерный анализ", T["accent_2"]),
-    (8,  "◉", "K-Means (заданное k)",  "критерий WCSS по (x₀, σ)",              "action_kmeans"),
-    (9,  "k", "Подбор числа кластеров","метод локтя + GMM/BIC",                 "action_choose_k"),
-    (10, "α", "★ α-отбор + кластеризация", "демо «схлопывания» подмножества",   "action_alpha_subset"),
-    (11, "∩", "Перекрытие α-срезов",   "single-linkage (НЕ дендрограмма!)",     "action_alpha_overlap"),
+    (8,   "", "K-Means (заданное k)",      "",              "action_kmeans"),
+    (9,   "", "Подбор числа кластеров",    "",                 "action_choose_k"),
+    (10,  "", "★ α-отбор + кластеризация", "",       "action_alpha_subset"),
+    (11,  "", "Перекрытие α-срезов",       "",     "action_alpha_overlap"),
     ("sec", "Графики", T["amber"]),
-    (12, "μ", "Купола выбранных величин", "ввод номеров для сравнения форм",   "action_bells_selected"),
+    (12,  "", "Купола выбранных величин",  "",       "action_bells_selected"),
 ]
-
-DOT = {"ok": T["green"], "warn": T["amber"], "err": T["red"], "work": T["accent"], "info": T["cyan"]}
 
 class App:
     def __init__(self, root: tk.Tk):
@@ -111,13 +108,10 @@ class App:
         hd.pack(side="top", fill="x")
         row = tk.Frame(hd, bg=T["panel"])
         row.pack(fill="x", padx=16, pady=(12, 10))
-        tk.Label(row, text="μ", font=(BASE_FONT, 16, "bold"), fg="#ffffff", bg=T["accent"], padx=13, pady=5).pack(side="left")
+        # БЕЗ бейджа μ, БЕЗ подзаголовка, БЕЗ формулы и чипа libs — только заголовок
         ttl = tk.Frame(row, bg=T["panel"])
-        ttl.pack(side="left", padx=(12, 0))
+        ttl.pack(side="left")
         tk.Label(ttl, text="Комплекс работы с нечёткими величинами", font=F_TITLE, fg=T["text"], bg=T["panel"]).pack(anchor="w")
-        tk.Label(ttl, text="гауссовская μ(x) · α-срезы (бисекция) · K-Means + GMM/BIC · α-отбор", font=F_SUB, fg=T["muted"], bg=T["panel"]).pack(anchor="w")
-        tk.Label(row, text="μ(x) = (1/(σ√2π))·exp(−(x−x₀)²/(2σ²))", font=(MONO_FONT, 9), fg=T["faint"], bg=T["panel"]).pack(side="right", padx=(12, 0))
-        Chip(row, f"libs v{LIBS_VERSION}", fg=T["green"]).pack(side="right")
         tk.Frame(hd, bg=T["border"], height=1).pack(fill="x")
 
     def _build_statusbar(self):
@@ -126,10 +120,9 @@ class App:
         tk.Frame(sb, bg=T["border"], height=1).pack(side="top", fill="x")
         row = tk.Frame(sb, bg=T["panel"])
         row.pack(fill="x", padx=12, pady=5)
-        self.status_dot = tk.Label(row, text="●", fg=T["accent"], bg=T["panel"], font=(BASE_FONT, 9))
-        self.status_dot.pack(side="left")
-        self.status_lbl = tk.Label(row, text="Готов к работе", fg=T["muted"], bg=T["panel"], font=F_STAT)
-        self.status_lbl.pack(side="left", padx=(6, 0))
+        # БЕЗ точки и БЕЗ текста «Готов к работе»: строка пустая до первого действия
+        self.status_lbl = tk.Label(row, text="", fg=T["muted"], bg=T["panel"], font=F_STAT)
+        self.status_lbl.pack(side="left")
         self.chip_k = Chip(row, f"k = {self.k}", fg=T["accent_2"])
         self.chip_alpha = Chip(row, f"α = {self.alpha}", fg=T["amber"])
         self.chip_n = Chip(row, f"N = {len(self.data)}", fg=T["accent"])
@@ -283,7 +276,6 @@ class App:
             pass
 
     def _set_status(self, msg, kind="info"):
-        self.status_dot.config(fg=DOT.get(kind, T["muted"]))
         self.status_lbl.config(text=msg)
 
     def _refresh_chips(self):
@@ -330,8 +322,8 @@ class App:
         ax = self.fig.add_subplot(111)
         ax.set_facecolor("#ffffff")
         ax.axis("off")
-        ax.text(0.5, 0.56, "μ", ha="center", va="center", fontsize=72, color="#e2e7ef", fontweight="bold")
-        ax.text(0.5, 0.36, "Графики появятся здесь — выполните действие на панели слева", ha="center", va="center", fontsize=10, color=T["faint"])
+        # БЕЗ водяного знака μ — только подсказка по центру
+        ax.text(0.5, 0.5, "Графики появятся здесь — выполните действие на панели слева", ha="center", va="center", fontsize=10, color=T["faint"])
         self._redraw()
 
     def _print_summary(self, rows, with_range=False):
@@ -412,6 +404,7 @@ class App:
         if labels: head += f"{'Кластер':>10}"
         self.log(head, "h2")
         self.log("  " + "─" * 60, "dim")
+        
         for i, fn in enumerate(shown):
             row = f"  {i + 1:<5}{fn.name:<8}{fn.x0:>10.4f}{fn.sigma:>10.4f}{fn.mu_max():>10.4f}"
             if labels: row += f"{labels[i]:>10}"
