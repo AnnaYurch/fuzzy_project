@@ -155,11 +155,15 @@ class ParamDialog(tk.Toplevel):
     def _ok(self):
         res = {}
         for key, (kind, var, mn, mx) in self.entries.items():
-            raw = var.get().strip().replace(",", ".")
+            raw = var.get().strip()
+            # ИСПРАВЛЕНИЕ: заменяем запятую на точку ТОЛЬКО для чисел!
+            if kind in ("int", "float"):
+                raw = raw.replace(",", ".")
             try:
                 val = int(float(raw)) if kind == "int" else (float(raw) if kind == "float" else raw)
             except ValueError:
-                return self._fail(f"Поле «{key}»: введите число")
+                err_msg = f"Поле «{key}»: введите число" if kind in ("int", "float") else f"Поле «{key}»: некорректный ввод"
+                return self._fail(err_msg)
             if kind in ("int", "float"):
                 if (mn is not None and val < mn) or (mx is not None and val > mx):
                     return self._fail(f"Поле «{key}»: диапазон {mn:g} … {mx:g}")
