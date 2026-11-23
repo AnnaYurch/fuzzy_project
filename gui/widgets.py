@@ -34,10 +34,11 @@ class SideButton(tk.Frame):
                                  fg=accent, bg=T["panel"], width=2)
         self.icon_lbl.pack(side="left", padx=(10, 4))
         txt = tk.Frame(self, bg=T["panel"])
-        txt.pack(side="left", fill="both", expand=True, pady=6)
+        txt.pack(side="left", fill="both", expand=True, pady=3)
         head = f"{num:02d} · {title}" if isinstance(num, int) else title
         tk.Label(txt, text=head, font=F_BTN, fg=T["text"], bg=T["panel"], anchor="w").pack(fill="x")
-        tk.Label(txt, text=sub, font=F_BTNSUB, fg=T["muted"], bg=T["panel"], anchor="w").pack(fill="x")
+        if sub and sub.strip():
+            tk.Label(txt, text=sub, font=F_BTNSUB, fg=T["muted"], bg=T["panel"], anchor="w").pack(fill="x")
         self._bind_tree("<Enter>", self._enter)
         self._bind_tree("<Leave>", self._leave)
         self._bind_tree("<Button-1>", self._click)

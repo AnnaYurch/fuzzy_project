@@ -71,7 +71,7 @@ BUTTON_SPECS = [
     ("sec", "Кластерный анализ", T["accent_2"]),
     (8,   "", "K-Means (заданное k)",      "",              "action_kmeans"),
     (9,   "", "Подбор числа кластеров",    "",                 "action_choose_k"),
-    (10,  "", "★ α-отбор + кластеризация", "",       "action_alpha_subset"),
+    (10,  "", "α-отбор + кластеризация", "",       "action_alpha_subset"),
     (11,  "", "Перекрытие α-срезов",       "",     "action_alpha_overlap"),
     ("sec", "Графики", T["amber"]),
     (12,  "", "Купола выбранных величин",  "",       "action_bells_selected"),
@@ -130,13 +130,13 @@ class App:
             c.pack(side="right", padx=(8, 0))
 
     def _build_sidebar(self, parent):
-        side = tk.Frame(parent, bg=T["panel"], width=300)
+        side = tk.Frame(parent, bg=T["panel"], width=370)
         side.pack(side="left", fill="y")
         side.pack_propagate(False)
         cap = tk.Frame(side, bg=T["panel"])
         cap.pack(fill="x", padx=14, pady=(14, 2))
         tk.Label(cap, text="ПАНЕЛЬ ОПЕРАЦИЙ", font=F_SECTION, fg=T["muted"], bg=T["panel"]).pack(side="left")
-        tk.Label(cap, text="12 действий", font=F_SMALL, fg=T["faint"], bg=T["panel"]).pack(side="right")
+        #tk.Label(cap, text="12 действий", font=F_SMALL, fg=T["faint"], bg=T["panel"]).pack(side="right")
 
         cv = tk.Canvas(side, bg=T["panel"], highlightthickness=0, bd=0)
         cv.pack(fill="both", expand=True)
@@ -171,7 +171,7 @@ class App:
                 accent = T["accent"] if num <= 5 else T["green"] if num <= 7 else T["accent_2"] if num <= 11 else T["amber"]
                 SideButton(inner, num, icon, title, sub, accent, fn).pack(fill="x", padx=10, pady=2)
 
-        tk.Label(inner, text="libs/ · tkinter · matplotlib", font=F_SMALL, fg=T["faint"], bg=T["panel"]).pack(pady=(18, 12))
+        #tk.Label(inner, text="libs/ · tkinter · matplotlib", font=F_SMALL, fg=T["faint"], bg=T["panel"]).pack(pady=(18, 12))
 
         for num in range(1, 10):
             self.root.bind_all(f"<Alt-{num}>", lambda e, m=self._actions[num]: m())
@@ -354,16 +354,16 @@ class App:
         d = ParamDialog(self.root, "1 · Генерация множества", [
             ("count", "Количество (100–300)", 150, "int", (100, 300)),
             ("seed", "Зерно ГСЧ (seed)", 42, "int", (0, 10_000_000)),
-        ], hint="Равномерный разброс параметров x₀ и σ (без группировки).").show()
+        ], hint="Равномерный разброс параметров x₀ и σ.").show()
         if not d: return
         with self._busy("Генерация множества"):
             self.data = generate_uniform_fuzzy_set(d["count"], seed=d["seed"])
         self.result = None
         mm = [f.mu_max() for f in self.data]
         self._log_header("1 · ГЕНЕРАЦИЯ МНОЖЕСТВА")
-        self.log(f"✓ Сгенерировано {len(self.data)} нечётких величин (равномерно).", "ok")
+        self.log(f"Сгенерировано {len(self.data)} нечётких величин (равномерно).", "ok")
         self.log(f"seed={d['seed']}")
-        self.log(f"μ_max ∈ [{min(mm):.4f}; {max(mm):.4f}] — разброс позволяет демонстрировать α-отбор.", "math")
+        self.log(f"μ_max ∈ [{min(mm):.4f}; {max(mm):.4f}]", "math")
         plots.overview(self.fig, self.data, f"Сгенерированное множество · N={len(self.data)} (цвет = μmax)")
         self.plot_hint.config(text="пространство (x₀, σ)")
         self._redraw(); self._refresh_chips()
@@ -377,7 +377,7 @@ class App:
             self.data = load_from_tsv(path)
         self.result = None
         self._log_header("2 · ЗАГРУЗКА ИЗ TSV")
-        self.log(f"✓ Загружено {len(self.data)} величин из {path}", "ok")
+        self.log(f"Загружено {len(self.data)} величин из {path}", "ok")
         plots.overview(self.fig, self.data, f"Загруженное множество · N={len(self.data)}")
         self._redraw(); self._refresh_chips()
         self._set_status(f"Загружено {len(self.data)} величин", "ok")
@@ -388,7 +388,7 @@ class App:
         path = filedialog.asksaveasfilename(title="Сохранить множество в TSV", defaultextension=".tsv", initialfile="dataset.tsv", initialdir=str(DATA_DIR), filetypes=[("TSV-файлы", "*.tsv")])
         if not path: return
         save_to_tsv(self.data, path)
-        self.log(f"✓ Сохранено: {path}", "ok")
+        self.log(f"Сохранено: {path}", "ok")
         self._set_status("Множество сохранено", "ok")
 
     @safe("Список величин")
@@ -422,7 +422,7 @@ class App:
         self.data.append(fn)
         self.result = None
         self._log_header("5 · ДОБАВЛЕНИЕ ВЕЛИЧИНЫ")
-        self.log(f"✓ Добавлено: {fn}", "ok")
+        self.log(f"Добавлено: {fn}", "ok")
         plots.overview(self.fig, self.data, f"Множество · N={len(self.data)}")
         self._redraw(); self._refresh_chips()
         self._set_status("Величина добавлена", "ok")
@@ -520,17 +520,17 @@ class App:
             bic = bics[i] if i < len(bics) else float("nan")
             mark = "  ← минимум BIC" if kk == best_k else ""
             self.log(f"  {kk:<6}{inertias[i]:>24.4f}{bic:>20.4f}{mark}", "ok" if kk == best_k else None)
-        self.log(f"✓ Оптимальное число кластеров по BIC: k = {best_k}", "ok")
+        self.log(f"Оптимальное число кластеров по BIC: k = {best_k}", "ok")
         plots.elbow_bic(self.fig, ks, inertias, ks2, bics, best_k)
         self.plot_hint.config(text=f"оптимум BIC: k={best_k}")
         self._redraw(); self._refresh_chips()
         self._set_status(f"BIC: оптимальное k={best_k}", "ok")
 
-    @safe("★ α-отбор + кластеризация")
+    @safe("α-отбор + кластеризация")
     def action_alpha_subset(self):
         if not self._require(2): return
         n = len(self.data)
-        d = ParamDialog(self.root, "10 · ★ α-отбор подмножества + кластеризация", [
+        d = ParamDialog(self.root, "10 · α-отбор подмножества + кластеризация", [
             ("k", f"Число кластеров k (1…{n})", self.k, "int", (1, n)),
             ("alpha", "α-порог отбора", self.alpha, "float", (0.001, 10.0)),
         ], hint="Критерий: μ(x₀) = 1/(σ√2π) ≥ α  ⇔  σ ≤ 1/(α√2π). Кластеризация полного множества и подмножества на те же k.").show()
@@ -541,7 +541,7 @@ class App:
             demo = clustering_on_subset(self.data, alpha, k)
         self.result = demo["full"]
         thr = 1.0 / (alpha * SQRT_2PI)
-        self._log_header("10 · ★ α-ОТБОР ПОДМНОЖЕСТВА + КЛАСТЕРИЗАЦИЯ")
+        self._log_header("10 · α-ОТБОР ПОДМНОЖЕСТВА + КЛАСТЕРИЗАЦИЯ")
         self.log(f"ПОЛНОЕ МНОЖЕСТВО: {n} величин, k = {k}", "h2")
         self._print_summary(demo["full"]["summary"])
         self.log(f"α-ОТБОР: порог α = {alpha:g};  критерий μ(x₀) ≥ α  ⇔  σ ≤ {thr:.4f}", "math")
@@ -552,8 +552,6 @@ class App:
             self.log(f"ПОДМНОЖЕСТВО: {demo['subset_size']} величин, те же k = {k}", "h2")
             self._print_summary(demo["subset_result"]["summary"])
             self.log(f"ВЫВОД: при α = {alpha:g} из {n} величин осталось {demo['subset_size']} — те, у кого μ_max ≥ {alpha:g}.", "ok")
-            self.log("Кластеры перестроились: часть величин «растворилась».", "dim")
-            self.log("Программа работает с ЛЮБЫМИ предельно допустимыми множествами.", "dim")
         plots.subset_demo(self.fig, self.data, demo)
         self.plot_hint.config(text=f"«схлопывание»: {n} → {demo['subset_size']} при α={alpha:g}")
         self._redraw(); self._refresh_chips()
@@ -562,14 +560,14 @@ class App:
     @safe("α-перекрытие")
     def action_alpha_overlap(self):
         if not self._require(2): return
-        d = ParamDialog(self.root, "11 · Перекрытие α-срезов (single-linkage)", [("alpha", "Уровень α", self.alpha, "float", (0.001, 10.0))], hint="Величины в одном кластере, если их α-срезы пересекаются. Это НЕ классическая дендрограмма, а алгоритм связности интервалов.").show()
+        d = ParamDialog(self.root, "11 · Перекрытие α-срезов (single-linkage)", [("alpha", "Уровень α", self.alpha, "float", (0.001, 10.0))], hint="Величины в одном кластере, если их α-срезы пересекаются.").show()
         if not d: return
         alpha = d["alpha"]
         with self._busy("α-перекрытие"):
             res = cluster_by_alpha_overlap(self.data, alpha)
         self.alpha, self.result = alpha, res
-        self._log_header("11 · ПЕРЕКРЫТИЕ α-СРЕЗОВ (НЕ ДЕНДРОГРАММА)")
-        self.log(f"✓ {res['method']}")
+        self._log_header("11 · ПЕРЕКРЫТИЕ α-СРЕЗОВ")
+        self.log(f" {res['method']}")
         self.log(f"Получилось кластеров: {res['k']}", "ok")
         self._print_summary(res["summary"][:25])
         plots.overlap(self.fig, self.data, res, alpha)
@@ -584,7 +582,7 @@ class App:
         d = ParamDialog(self.root, "12 · Купола выбранных величин", [
             ("indices", f"Номера через запятую (макс. 4, напр: 1, 5, 12)", "1, 2, 3", "str"),
             ("alpha", "Показать линию α (0 для скрытия)", 0.0, "float", (0.0, 10.0)),
-        ], hint="Программа построит графики μ(x) ТОЛЬКО для указанных вами величин, чтобы вы могли сравнить их форму и ширину.").show()
+        ]).show()
         if not d: return
 
         try:
