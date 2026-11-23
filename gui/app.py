@@ -81,6 +81,10 @@ class App:
     def __init__(self, root: tk.Tk):
         self.root = root
         self.data = []
+        # Независимые α-параметры для действий 6 и 10.
+        self.alpha_1 = 0.43
+        self.alpha_2 = 0.43
+        # Сохраняем общий alpha для остальных существующих действий и чипа.
         self.alpha = 0.43
         self.k = 5
         self.result = None
@@ -431,14 +435,15 @@ class App:
     def action_alpha_all(self):
         if not self._require(): return
         d = ParamDialog(self.root, "6 · Визуализация α-порога для ВСЕХ величин", [
-            ("alpha", "Уровень α-порога", self.alpha, "float", (0.001, 10.0)),
-        ], hint="Синие: проходят порог (μ_max ≥ α). Красные: не проходят. Чёрная линия: уровень α.").show()
+            ("alpha", "Уровень α₁-порога", self.alpha_1, "float", (0.001, 10.0)),
+        ], hint="Синие: проходят порог (μ_max ≥ α₁). Красные: не проходят. Чёрная линия: уровень α₁.").show()
         if not d: return
-        self.alpha = d["alpha"]
+        self.alpha_1 = d["alpha"]
+        self.alpha = self.alpha_1  # только для отображения текущего α в существующем чипе
         self._log_header("6 · ВИЗУАЛИЗАЦИЯ α-ПОРОГА (ВСЕ ВЕЛИЧИНЫ)")
-        passed = sum(1 for fn in self.data if fn.passes_alpha_threshold(self.alpha))
-        self.log(f"α = {self.alpha:g}. Прошли порог: {passed} из {len(self.data)}.", "ok")
-        plots.alpha_threshold_all(self.fig, self.data, self.alpha)
+        passed = sum(1 for fn in self.data if fn.passes_alpha_threshold(self.alpha_1))
+        self.log(f"α₁ = {self.alpha_1:g}. Прошли порог: {passed} из {len(self.data)}.", "ok")
+        plots.alpha_threshold_all(self.fig, self.data, self.alpha_1)
         self.plot_hint.config(text="")
         self._redraw(); self._refresh_chips()
         self._set_status("Визуализация α-порога построена", "ok")
@@ -532,11 +537,12 @@ class App:
         n = len(self.data)
         d = ParamDialog(self.root, "10 · α-отбор подмножества + кластеризация", [
             ("k", f"Число кластеров k (1…{n})", self.k, "int", (1, n)),
-            ("alpha", "α-порог отбора", self.alpha, "float", (0.001, 10.0)),
-        ], hint="Критерий: μ(x₀) = 1/(σ√2π) ≥ α  ⇔  σ ≤ 1/(α√2π). Кластеризация полного множества и подмножества на те же k.").show()
+            ("alpha", "α₂-порог отбора", self.alpha_2, "float", (0.001, 10.0)),
+        ], hint="Критерий: μ(x₀) = 1/(σ√2π) ≥ α₂  ⇔  σ ≤ 1/(α₂√2π). Кластеризация полного множества и подмножества на те же k.").show()
         if not d: return
         k, alpha = d["k"], d["alpha"]
-        self.k, self.alpha = k, alpha
+        self.k, self.alpha_2 = k, alpha
+        self.alpha = self.alpha_2  # только для отображения текущего α в существующем чипе
         with self._busy("α-отбор и кластеризация"):
             demo = clustering_on_subset(self.data, alpha, k)
         self.result = demo["full"]
@@ -544,14 +550,14 @@ class App:
         self._log_header("10 · α-ОТБОР ПОДМНОЖЕСТВА + КЛАСТЕРИЗАЦИЯ")
         self.log(f"ПОЛНОЕ МНОЖЕСТВО: {n} величин, k = {k}", "h2")
         self._print_summary(demo["full"]["summary"])
-        self.log(f"α-ОТБОР: порог α = {alpha:g};  критерий μ(x₀) ≥ α  ⇔  σ ≤ {thr:.4f}", "math")
+        self.log(f"α₂-ОТБОР: порог α₂ = {alpha:g};  критерий μ(x₀) ≥ α₂  ⇔  σ ≤ {thr:.4f}", "math")
         self.log(f"Было: {n} → Стало: {demo['subset_size']}", "ok")
         if demo["subset_result"] is None:
             self.log(f"! {demo['message']}", "warn")
         else:
             self.log(f"ПОДМНОЖЕСТВО: {demo['subset_size']} величин, те же k = {k}", "h2")
             self._print_summary(demo["subset_result"]["summary"])
-            self.log(f"ВЫВОД: при α = {alpha:g} из {n} величин осталось {demo['subset_size']} — те, у кого μ_max ≥ {alpha:g}.", "ok")
+            self.log(f"ВЫВОД: при α₂ = {alpha:g} из {n} величин осталось {demo['subset_size']} — те, у кого μ_max ≥ {alpha:g}.", "ok")
         plots.subset_demo(self.fig, self.data, demo)
         self.plot_hint.config(text=f"«схлопывание»: {n} → {demo['subset_size']} при α={alpha:g}")
         self._redraw(); self._refresh_chips()
